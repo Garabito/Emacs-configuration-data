@@ -1,0 +1,702 @@
+;; cualquier cambio teniendo abierto emacs, usar M-x eval-buffer para actualizar
+;; C:\Users\nxf82725\Documents\Workspace.emacs
+;;
+#-*- mode: org -*-
+#+STARTUP: showall
+#+STARTUP: lognotedone
+#+STARTUP: logdone
+#+startup: overview
+#+TITLE: Mi TODO
+#+AUTHOR:  Carlos Enrique Moran Garabito
+#+DATE:    15 de Septiembre de 2023
+#+OPTIONS: toc:nil :::toc:nil, que sirve para que al crear el documento, este no tenga tabla de contenidos. 
+#+LATEX_CLASS_OPTIONS: [a4paper,12pt,twoside]
+#+LATEX_HEADER: \usepackage{a4wide}
+#+DESCRIPTION: TODO que estoy haciendo en el trabajo
+#+SEQ_TODO: TSP-InProgress(P!) TSP-Waiting(Sw@/!) | TSP-Done(F!) 
+#+SEQ_TODO: DSP-InProgress(p!) DSP-Waiting(sw@/!) | DSP-Done(f!) 
+#+SEQ_TODO: TODO(t!) Waiting(w@/!) Someday(s@) IN-PROGRESS(i!) DELEGATED(D) Agendar(g)| DONE(d!) CANCELED(c@/!) ARCHIVAR(a!) TIRAR(T) 
+#+PRIORITIES: 1 2 3 4
+#+ARCHIVE: :: * Completed
+
+* Interface tweaks
+** Some GUI optimizations
+   #+begin_src emacs-lisp
+  (setq inhibit-startup-message t) ; Eliminate FSF startup msg
+  (setq frame-title-format "%b")   ; Put filename in titlebar
+  ;; (setq visible-bell t)            ; Flash instead of beep
+  (set-scroll-bar-mode 'right)     ; Scrollbar placement
+  (show-paren-mode t)              ; Blinking cursor shows matching parentheses
+  (electric-pair-mode t)           ; electric-pair-mode on
+  (setq column-number-mode t)      ; Show column number of current cursor location
+  (mouse-wheel-mode t)             ; wheel-mouse support
+  (setq fill-column 78)
+  (setq auto-fill-mode t)                   ; Set line width to 78 columns...
+  (setq-default indent-tabs-mode nil)       ; Insert spaces instead of tabs
+  (global-set-key "\r" 'newline-and-indent) ; turn autoindenting on
+  ;(set-default 'truncate-lines t)          ; Truncate lines for all buffers
+  ; I always start a clock when I work on a task. And for the Pomodoro
+  ; technique I use also the org-timer module with some configuration.
+  ; Activate the org-timer module :
+  (add-to-list 'org-modules 'org-timer)
+  ; Set a default value for the timer, for example :
+  (setq org-timer-default-timer 25)
+  ; Modify the org-clock-in so that a timer is started with the default
+  ; value except if a timer is already started :
+  (add-hook 'org-clock-in-hook (lambda ()
+    (if (not org-timer-current-timer)
+    (org-timer-set-timer '(16)))))
+  #+end_src
+
+** Set encoding
+   :: Use utf-8 please
+   #+begin_src emacs-lisp
+     ;; Set encoding
+     (prefer-coding-system 'utf-8)
+   #+end_src
+
+** Some shortcuts
+   :: Useful shortcuts
+   #+begin_src emacs-lisp
+     (global-set-key (kbd "\e\ec")
+                     (lambda () (interactive) (find-file "C:\Users\nxf82725\Documents\Workspace.emacs\myinit.org"))
+                     )
+
+     (global-set-key [C-tab] 'hippie-expand)                    ; expand
+     (global-set-key [C-kp-subtract] 'undo)                     ; [Undo]
+     (global-set-key [C-kp-multiply] 'goto-line)                ; goto line
+     (global-set-key [C-kp-add] 'toggle-truncate-lines)         ; truncate lines
+     (global-set-key [C-kp-divide] 'delete-trailing-whitespace) ; delete trailing whitespace
+     (global-set-key [C-kp-decimal] 'completion-at-point)       ; complete at point
+     (global-set-key [C-M-prior] 'previous-buffer)              ; previous-buffer
+     (global-set-key [C-M-next] 'next-buffer)                   ; next-buffer
+	 (global-set-key (kbd "C-c a") 'org-agenda)					; abre agenda
+   #+end_src
+
+** Own map
+   Defines own key map
+   #+begin_src emacs-lisp
+     (define-prefix-command 'own-map)
+     (global-set-key (kbd "C-ñ") 'own-map)
+     (define-key own-map (kbd "y") 'aya-create)
+     (define-key own-map (kbd "e") 'aya-expand)
+   #+end_src
+
+** Syntax highlight
+   Set maximum colors
+   #+begin_src emacs-lisp
+     (cond ((fboundp 'global-font-lock-mode)        ; Turn on font-lock (syntax highlighting)
+            (global-font-lock-mode t)               ; in all modes that support it
+            (setq font-lock-maximum-decoration t))) ; Maximum colors
+   #+end_src
+
+** Kill buffer quick
+;; Kill Buffer Quick de las lineas 53 a la 64 define una función para matar el buffer
+;; (fichero) que estamos editando sin tener que recorrer todo el diálogo por defecto en Emacs y lo asocia a Ctrl-Supr
+
+   Kill current buffer without questions
+   #+begin_src emacs-lisp
+     ;;------------------------------------------------------------
+     ;; Kill current buffer with C-Supr
+     (defun geosoft-kill-buffer ()
+       ;; Kill default buffer without the extra emacs questions
+       (interactive)
+       (kill-buffer (buffer-name))
+       (set-name))
+     (global-set-key [C-delete] 'geosoft-kill-buffer)
+   #+end_src
+
+** Wonderful bubble-buffer
+;; Wonderful Bubble Buffer Mantiene un listado de ficheros recientes por el que podemos movernos con la tecla F8 
+;;(cuando visitamos un buffer asciende en la lista como una burbuja) Siempre puedes moverte normalmente por los buffers 
+;; abiertos con Shift-PgUp y Shift-PgDown que definimos en la sección de Shortcuts
+
+   Switch to most recent buffers with F8
+   #+begin_src emacs-lisp
+     ;;------------------------------------------------------------
+     ;; The wonderful bubble-buffer
+     (defvar LIMIT 1)
+     (defvar time 0)
+     (defvar mylist nil)
+     (defun time-now ()
+     (car (cdr (current-time))))
+     (defun bubble-buffer ()
+     (interactive)
+     (if (or (> (- (time-now) time) LIMIT) (null mylist))
+         (progn (setq mylist (copy-alist (buffer-list)))
+                (delq (get-buffer " *Minibuf-0*") mylist)
+                (delq (get-buffer " *Minibuf-1*") mylist)))
+     (bury-buffer (car mylist))
+     (setq mylist (cdr mylist))
+     (setq newtop (car mylist))
+     (switch-to-buffer (car mylist))
+     (setq rest (cdr (copy-alist mylist)))
+     (while rest
+       (bury-buffer (car rest))
+       (setq rest (cdr rest)))
+     (setq time (time-now)))
+     (global-set-key [f8] 'bubble-buffer)
+   #+end_src
+
+** parent matching with %
+;; parent matching with % Nos permite saltar al parentesis asociado con el que 
+;; señale el cursor sin más que pulsar % (imitando a otros editores como Vim)
+
+   Jump to asociated parent with '%' same as other editors
+   #+begin_src emacs-lisp
+     ;;------------------------------------------------------------
+     ;; Use % to match various kinds of brackets...
+     ;; See: http://www.lifl.fr/~hodique/uploads/Perso/patches.el
+     (global-set-key "%" 'match-paren)   ; % key match parents
+     (defun match-paren (arg)
+       "Go to the matching paren if on a paren; otherwise insert %."
+       (interactive "p")
+       (let ((prev-char (char-to-string (preceding-char)))
+             (next-char (char-to-string (following-char))))
+         (cond ((string-match "[[{(<]" next-char) (forward-sexp 1))
+               ((string-match "[\]})>]" prev-char) (backward-sexp 1))
+               (t (self-insert-command (or arg 1))))))
+   #+end_src
+
+* use-package
+;; use-package tips
+;; A continuación tenemos una seccion dedicada a use-package en esta sección solucionamos el error de las 
+;; nuevas claves GPG de Elpa instalando un paquete con las nuevas claves (para lo cual desactivamos un momento 
+;; la verificación de claves). E instalamos otro paquete que nos permitirá especificar en el futuro si hay paquetes 
+;; de sistema que sean dependencias necesarias para nuestras ampliaciones de Emacs. Además instalamos try para poder 
+;; probar paquetes Emacs sin tocar la configuración ni afectarla con la prueba.
+
+   Some notes about *use-package*
+   - *:ensure* if true will install the package if not installed
+     It won't update packages. See auto-package-update for keeping all
+     packages up to date
+   - *:init* keyword to execute code before a package is loaded. It
+     accepts one or more foorms, up to the next keyword
+   - *:config* can be used to execute code after a package is loaded.
+     In cases where loading is done lazily (see more about autoloading
+     below), this execution is deferred until after the autoload
+     occurs
+   - *:bind*
+   - *bind-keymap*
+   - *:mode* and *:interpreter*
+   - *:magic*
+   - *:hook*
+   - *:if*
+
+** helpers
+   =gnu-elpa-keyring-update= Avoids GPG errors in emacs version prior
+   to 26.3 And =use-package-ensure-system-package= gives a warning
+   when needed system packages are missing
+   #+begin_src emacs-lisp
+     (unless (package-installed-p 'gnu-elpa-keyring)
+       (setq package-check-signature nil)
+       (use-package gnu-elpa-keyring-update
+         :ensure t)
+       (setq package-check-signature 'allow-unsigned))
+     (use-package use-package-ensure-system-package
+       :ensure t)
+   #+end_src
+
+** try
+   To try package without definitive installation
+   #+begin_src emacs-lisp
+     (use-package try
+       ;; for trying packages without installing
+       :ensure t)
+   #+end_src
+
+* ace-windows
+;; Emacs es un software que se inventó bastante antes del concepto de ventanas que manejamos ahora en casi 
+;; todos los sistemas operativos. Por esa razón usa una terminología algo arcaica. Las ventanas que conocemos 
+;; en cualquier entorno gráfico se llaman frames en Emacs y las secciones en las que podemos dividir una ventana 
+;; del editor se llaman windows.
+
+;; Para que quede claro puedes probar a dividir tu pantalla de Emacs en varias ventanas usando C-x 2 o C-x 3 unas 
+;; cuantas veces. Si lo que quieres es abrir un nuevo frame el comando sería C-x 4 f
+
+;; ace-windows es un paquete que nos ayuda cuando tenemos varias windows de Emacs y queremos cambiar de ventana con el
+;; comando C-x o. Todas las ventanas abiertas mostrarán un número y no tenemos más que teclear el número elegido para 
+;; saltar a la ventana que queramos.
+
+  To jump to different windows easily
+  #+begin_src emacs-lisp
+    (use-package ace-window
+      :ensure t
+      :init
+      (global-set-key [remap other-window] 'ace-window)
+      (custom-set-faces
+       '(aw-leading-char-face
+         ((t (:inherit ace-jump-face-foreground :height 3.0)))))
+      )
+  #+end_src
+
+* which-key
+;; which-key es un paquete que nos facilita la vida al teclear comandos. Prueba a teclear C-x (el prefijo de muchísimos 
+;; comandos en nuestro editor) antes y después de instalar el paquete para ver la diferencia.
+
+;; which-key nos permite ir construyendo el comando poco a poco, podemos borrar el último caracter introducido con C-h u
+;; Si tenemos varias páginas de posibles combinaciones podemos usar C-h n y C-h p para movernos a la siguiente (next) o 
+;; anterior (prior)
+;; Si ponemos el cursor del ratón encima de alguna de las sugerencias que nos aparecen en la miniconsola veremos un texto 
+;; de documentación del comando.
+;; C-h a aborta el comando
+
+;; which-key funcionará incluso con los atajos de teclado que nosotros configuremos. En cambio no funcionará con M-x 
+;; (execute-extended-command) y es buena cosa que no lo haga. Se calcula que Emacs es capaz de ejecutar unos diezmil 
+;; comandos y eso antes de que instalemos ningún paquete opcional. De todas formas en el siguiente apartado instalaremos 
+;; un paquete que nos ayudará con eso también.
+
+  Some help with hotkeys
+  #+begin_src emacs-lisp
+    (use-package which-key
+      ;; give us help for keys in RT
+      :ensure t
+      :config (which-key-mode))
+  #+end_src
+
+* ivy - counsel - swipper
+;; ivy es un gestor de listas. La lista gestionada puede ser de casi cualquier cosa. Podría ser una lista de ficheros si 
+;; hemos invocado la función de cargar fichero. O podría ser una lista de coincidencias si estamos buscando una palabra en 
+;; el editor, o una lista de comandos si estamos tecleando un comando en el minibuffer.
+
+;; ivy por si solo sería un poco difícil de usar, así que se instalan también swipper que nos va a dar un interfaz de 
+;; búsquedas mejorado dentro del fichero que estamos editando, y counsel que añade muchas funcionalidades apoyándose en ivy. 
+;; En realidad si instalamos counsel los otros dos paquetes vienen como dependencias.
+
+;; Una vez instalados los paquetes no tenemos más que teclear M-x para verlos en acción. Si os fijais ivy añade un caracter ‘^’ 
+;; a la cadena de búsqueda. Ese caracter significa “principio de la cadena” en regexp, así que si tecleo window, ivy filtrará 
+;; todos los comandos que empiecen por window. Si borro el ‘^’ y tecleo window, entonces ivy me devolverá todos los comandos 
+;; que contengan la cadena window. Ya veis que con la funcionalidad combinada de counsel e ivy puedo buscar comandos en el 
+;; minibuffer de M-x sin saber exactamente como se llaman.
+
+  An enhanced incremental search and a lot of features from counsel
+  #+begin_src emacs-lisp
+    (use-package counsel
+      :ensure t
+      :bind
+      (("C-S-o" . counsel-rhythmbox)
+       ("M-x" . counsel-M-x)
+       ("C-x C-f" . counsel-find-file)
+       ("<f1> f" . counsel-describe-function)
+       ("<f1> v" . counsel-describe-variable)
+       ("<f1> l" . counsel-load-library)
+       ("<f2> i" . counsel-info-lookup-symbol)
+       ("<f2> u" . counsel-unicode-char)
+       ("C-c g" . counsel-git)
+       ("C-c j" . counsel-git-grep)
+       ;; ("C-c k" . counsel-ag)    requires installation: apt install silversearcher-ag
+       ("C-x l" . counsel-locate)
+       ("M-y" . counsel-yank-pop)
+       :map ivy-minibuffer-map
+       ("M-y" . ivy-next-line))
+      )
+    ;; Takes care of elections menus
+    (use-package ivy
+      :ensure t
+      :diminish (ivy-mode)
+      :bind
+      (("C-x b" . ivy-switch-buffer)
+       ("<f6>" . ivy-resume)
+      )
+      :config
+      (ivy-mode 1)
+      (setq ivy-use-virtual-buffers t
+            ivy-count-format "%d/%d "
+            ivy-display-style 'fancy)
+      )
+
+    (use-package swiper
+      :ensure t
+      :bind
+      (("C-s" . swiper)
+       ("C-r" . swiper-isearch-backward)
+       :map minibuffer-local-map
+       ("C-r" . counsel-minibuffer-history)
+      )
+      :config
+      (ivy-mode 1)
+      (setq ivy-use-virtual-buffers t)
+      )
+  #+end_src
+
+* hydra
+;; hydra permite montar “árboles de comandos” en la configuración propuesta vienen tres árboles configurados: uno de comandos 
+;; que conmutan entre dos estados, uno de comandos de navegación, y otro de comandos para org-mode
+
+;; Más adelante usaremos hydra para implementar nuevos árboles de comandos.
+
+  Defines command trees (so to speak)
+  #+begin_src emacs-lisp
+    (use-package hydra
+      :ensure t)
+  #+end_src
+
+** Hydra for toggle modes
+#+begin_src emacs-lisp
+  (global-set-key
+   (kbd "C-x t")
+   (defhydra toggle (:color blue)
+     "toggle"
+     ("a" abbrev-mode "abbrev")
+     ("s" flyspell-mode "flyspell")
+     ("d" toggle-debug-on-error "debug")
+     ("c" fci-mode "fCi")
+     ("f" auto-fill-mode "fill")
+     ("t" toggle-truncate-lines "truncate")
+     ("w" whitespace-mode "whitespace")
+     ("q" nil "cancel")
+     )
+   )
+#+end_src
+
+** Hydra for navigation
+#+begin_src emacs-lisp
+  (global-set-key
+   (kbd "C-x j")
+   (defhydra gotoline
+     (:pre (linum-mode 1)
+      :post (linum-mode -1))
+     "goto"
+     ("t" (lambda () (interactive)(move-to-window-line-top-bottom 0)) "top")
+     ("b" (lambda () (interactive)(move-to-window-line-top-bottom -1)) "bottom")
+     ("m" (lambda () (interactive)(move-to-window-line-top-bottom)) "middle")
+     ("e" (lambda () (interactive)(end-of-buffer)) "end")
+     ("c" recenter-top-bottom "recenter")
+     ("n" next-line "down")
+     ("p" (lambda () (interactive) (forward-line -1))  "up")
+     ("g" goto-line "goto-line")
+     )
+   )
+#+end_src
+
+** Hydra for some org-mode stuff
+#+begin_src emacs-lisp
+  (global-set-key
+   (kbd "C-c t")
+   (defhydra hydra-global-org (:color blue)
+     "Org"
+     ("t" org-timer-start "Start Timer")
+     ("s" org-timer-stop "Stop Timer")
+     ("r" org-timer-set-timer "Set Timer") ; This one requires you be in an orgmode doc, as it sets the timer for the header
+     ("p" org-timer "Print Timer") ; output timer value to buffer
+     ("w" (org-clock-in '(4)) "Clock-In") ; used with (org-clock-persistence-insinuate) (setq org-clock-persist t)
+     ("o" org-clock-out "Clock-Out") ; you might also want (setq org-log-note-clock-out t)
+     ("j" org-clock-goto "Clock Goto") ; global visit the clocked task
+     ("c" org-capture "Capture") ; Don't forget to define the captures you want http://orgmode.org/manual/Capture.html
+     ("l" (or )rg-capture-goto-last-stored "Last Capture")
+     )
+   )
+#+end_src
+
+* avy
+  Quick navigation to words
+;; avy es un paquete que permite moverse rápidamente por el fichero editado sin usar el ratón. Con la configuración que ves 
+;; aquí te permite teclear dos caracteres y marcará todas las coincidencias en el fichero cada una con una letra-atajo diferente. 
+;; Puedes moverte a cualquier coincidencia sin mas que teclear su código. La verdad es que no la uso mucho.
+  
+  #+begin_src emacs-lisp
+    ;; avy
+    (use-package avy
+      :ensure t
+      :config
+      (avy-setup-default)
+      :bind(
+            ("M-g c" . avy-goto-char-2)
+            )
+      )
+  #+end_src
+
+* iedit
+  Interactive edition of all ocurrences of X
+;; iedit es mucho más interesante, si entramos en el iedit-mode pulsando C-; iedit seleccionará todas las ocurrencias, en todo el 
+;; fichero, del símbolo bajo el cursor (o de lo que tengamos selecionado en la región si está activa) y nos permitirá editar todas 
+;; las ocurrencias de una sola vez. Con iedit activado la combinación M-h lo restringe a la función actual (muy útil si estamos 
+;; programando). Hay muchas mas formas de restricción, lo mejor es leer la descripción del modo (C-h m iedit-mode). Cuando 
+;; terminemos la edición pulsamos de nuevo C-;
+  
+  #+begin_src emacs-lisp
+    (use-package iedit
+      :ensure t)
+  #+end_src
+
+* color-theme
+  Get some colour in your life
+;; Aun no he trabajado mucho en los temas, tengo configurado el leuven_theme y parece que hace un buen trabajo. Los ficheros 
+;; org-mode se ven bien y no tengo ningún problema editando texto o programando.
+
+;; Aun no tengo ningún tema dark bien probado. Y también tengo pendientes investigar los temas doom. Si consigo probarlos a tiempo 
+;; les dedicaré un artículo dentro de esta serie.
+
+  #+begin_src emacs-lisp
+    (use-package color-theme-modern
+      :ensure t)
+    (use-package leuven-theme
+      :ensure t
+      ;; :config
+      ;; (load-theme 'leuven-dark t)
+      ;; (setq leuven-scale-outline-headlines t)
+      ;; (setq leuven-scale-org-agenda-structure nil)
+      )
+  #+end_src
+
+* projectile
+  Work project-oriented
+  #+begin_src emacs-lisp
+    (use-package projectile
+      :ensure t
+      :config
+      (projectile-global-mode)
+      (define-key projectile-mode-map (kbd "C-c p") 'projectile-command-map)
+      (setq projectile-completion-system 'ivy)
+      )
+
+    (use-package counsel-projectile
+      :ensure t
+      :config
+      (setq counsel-projectile-mode t)
+      )
+  #+end_src
+
+* git
+  All you need for git
+  #+begin_src emacs-lisp
+    (use-package magit
+      :ensure t
+      :init
+      (progn
+        (bind-key "C-x g" 'magit-status)
+        )
+      )
+
+    (setq magit-status-margin
+          '(t "%Y-%m-%d %H:%M " magit-log-margin-width t 18))
+
+    (use-package git-gutter
+      :ensure t
+      :init
+      (global-git-gutter-mode +1)
+      )
+
+    (global-set-key (kbd "M-g M-g") 'hydra-git-gutter/body)
+
+    (use-package git-timemachine
+      :ensure t
+      )
+
+    (defhydra hydra-git-gutter (:body-pre (git-gutter-mode 1)
+                                :hint nil)
+      "
+      Git gutter:
+        _j_: next hunk        _s_tage hunk     _q_uit
+        _k_: previous hunk    _r_evert hunk    _Q_uit and deactivate git-gutter
+        ^ ^                   _p_opup hunk
+        _h_: first hunk
+        _l_: last hunk        set start _R_evision
+      "
+      ("j" git-gutter:next-hunk)
+      ("k" git-gutter:previous-hunk)
+      ("h" (progn (goto-char (point-min))
+                  (git-gutter:next-hunk 1)))
+      ("l" (progn (goto-char (point-min))
+                  (git-gutter:previous-hunk 1)))
+      ("s" git-gutter:stage-hunk)
+      ("r" git-gutter:revert-hunk)
+      ("p" git-gutter:popup-hunk)
+      ("R" git-gutter:set-start-revision)
+      ("q" nil :color blue)
+      ("Q" (progn (git-gutter-mode -1)
+                  ;; git-gutter-fringe doesn't seem to
+                  ;; clear the markup right away
+                  (sit-for 0.1)
+                  (git-gutter:clear))
+       :color blue))
+  #+end_src
+
+* yasnippet
+  Place your own snippets on ~/.emacs.d/snippets
+  #+begin_src emacs-lisp
+    (use-package yasnippet
+      :ensure t
+      :config
+      :init
+      (yas-global-mode 1)
+      )
+    (use-package auto-yasnippet
+      :ensure t
+      )
+    (use-package yasnippet-snippets
+      :ensure t)
+  #+end_src
+
+* flycheck
+  Syntax checking for programming languages
+  #+begin_src emacs-lisp
+    (use-package flycheck
+      :ensure t
+      :config
+      (global-set-key  (kbd "C-c C-p") 'flycheck-previous-error)
+      (global-set-key  (kbd "C-c C-n") 'flycheck-next-error)
+      :init
+      (global-flycheck-mode t)
+      )
+  #+end_src
+
+* company
+  Autocompletion with company
+  #+begin_src emacs-lisp
+    (use-package company
+      :ensure t
+      :config
+      (setq company-idle-delay 0)
+      (setq company-minimum-prefix-length 3)
+      ;; (add-to-list 'company-backends 'company-yasnippet t)
+      (global-company-mode t)
+      )
+  #+end_src
+** company-quickhelp
+   In case you want popup help instead of status line help
+  #+begin_src emacs-lisp
+    (use-package company-quickhelp
+      :ensure t
+      :config
+      (company-quickhelp-mode)
+    )
+  #+end_src
+
+* Python
+** Use latest python
+   #+begin-src emacs-lisp
+     (setq python-shell-interpreter "/usr/bin/python3.8")
+     (setq py-python-command "/usr/bin/python3.8")        ; maybe not needed
+     (setq python-python-command "/usr/bin/python3.8")    ; maybe not needed
+   #+end-src
+
+** company-jedi
+**Choose company-jedi or elpy, you don't need both**
+Autocompletion for python
+   - Run M-x jedi:install-server
+   - M-x jedi:show-setup-info
+
+   #+begin_src emacs-lisp
+     ;; (use-package company-jedi             ;;; company-mode completion back-end for Python JEDI
+     ;;   :ensure t
+     ;;   :config
+     ;;   (setq jedi:environment-virtualenv
+     ;;         (append python-environment-virtualenv
+     ;;                 '("--no-site-packages" "--python" "/usr/bin/python3.8")))
+     ;;   (setq jedi:environment-virtualenv (list (expand-file-name "~/.emacs.d/.python-environments/")))
+     ;;   (add-hook 'python-mode-hook 'jedi:setup)
+     ;;   (setq jedi:complete-on-dot t)
+     ;;   (setq jedi:use-shortcuts t)
+     ;;   (defun config/enable-company-jedi ()
+     ;;     (add-to-list 'company-backends 'company-jedi))
+     ;;   (add-hook 'python-mode-hook 'config/enable-company-jedi)
+     ;;   )
+   #+end_src
+
+** elpy
+**Choose only one configuration: company-jedi or elpy**
+python-IDE
+The virtualenv for elpy-rpc must be manually created
+[[https://elpy.readthedocs.io/en/latest/][elpy documentation]]
+
+#+begin_src emacs-lisp
+  (use-package elpy
+    :ensure t
+    :defer t
+    :init
+    (advice-add 'python-mode :before 'elpy-enable)
+    :config
+    (setq elpy-rpc-python-command (expand-file-name "~/.virtualenvs/elpy-rpc/bin/python"))
+    (setq elpy-rpc-virtualenv-path (expand-file-name "~/.virtualenvs/elpy-rpc"))
+    (elpy-enable)
+    (setq elpy-modules (delq 'elpy-module-flymake elpy-modules))
+    (add-hook 'elpy-mode-hook 'flycheck-mode)
+    (setq elpy-rpc-backend "jedi")
+    (add-hook 'elpy-mode-hook (lambda ()
+                                (add-hook 'before-save-hook
+                                          'elpy-format-code nil t)))
+    )
+#+end_src
+
+** virtualenvwrapper
+I don't use this package
+#+begin_src emacs-lisp
+  ;; (use-package virtualenvwrapper
+  ;;   :ensure t
+  ;;   :config
+  ;;   (venv-initialize-interactive-shells)
+  ;;   (venv-initialize-eshell)
+  ;;   )
+#+end_src
+
+* C++ et al
+  [[https://github.com/guolibao/guo-dot-emacs-dot-d][Pistas]]
+  #+begin_src emacs-lisp
+     ;; tags for code navigation
+     ;; (use-package ggtags
+     ;;   :ensure t
+     ;;   :config
+     ;;   (add-hook 'c-mode-common-hook
+     ;;             (lambda ()
+     ;;               (when (derived-mode-p 'c-mode 'c++-mode 'java-mode 'asm-mode)
+     ;;                 (ggtags-mode 1)))
+     ;;             )
+     ;;   )
+     ;; (define-key ggtags-mode-map (kbd "C-c g s") 'ggtags-find-other-symbol)
+     ;; (define-key ggtags-mode-map (kbd "C-c g h") 'ggtags-view-tag-history)
+     ;; (define-key ggtags-mode-map (kbd "C-c g r") 'ggtags-find-reference)
+     ;; (define-key ggtags-mode-map (kbd "C-c g f") 'ggtags-find-file)
+     ;; (define-key ggtags-mode-map (kbd "C-c g c") 'ggtags-create-tags)
+     ;; (define-key ggtags-mode-map (kbd "C-c g u") 'ggtags-update-tags)
+     ;;
+     ;; (define-key ggtags-mode-map (kbd "M-,") 'pop-tag-mark)
+
+     ;; (use-package company-c-headers
+     ;;   :config
+     ;;   (add-hook 'c-mode-common-hook (lambda () (add-local-company-backend 'company-c-headers)))
+     ;;   (add-to-list 'company-c-headers-path-system "/usr/include/c++/7/")
+     ;;   )
+     ;; (use-package cmake-ide
+     ;;   :bind ("<f5>" . cmake-ide-compile)
+     ;;   :config
+     ;;   (require 'rtags)
+     ;;   (cmake-ide-setup)
+     ;;   (add-hook 'c-mode-hook   #'cmake-ide-load-db)
+     ;;   (add-hook 'c++-mode-hook #'cmake-ide-load-db)
+     ;;   (setq cmake-ide-src-extensions '(".c" ".cpp" ".C" ".cxx" ".cc" ".c++"))
+     ;;   )
+  #+end_src
+
+* D programming language
+   #+begin_src emacs-lisp
+     ;;(use-package flycheck-d-unittest
+     ;;  :ensure t)
+     ;;(use-package company-dcd
+     ;;  :ensure t
+     ;;  :config
+     ;;  (add-hook 'd-mode-hook 'company-dcd-mode)
+     ;;  )
+
+     ;; (use-package ac-dcd
+     ;;   :defer t
+     ;;   :ensure t
+     ;;   :config
+     ;;   (ac-dcd-maybe-start-server)
+     ;;   (add-hook 'd-mode-hook 'ac-dcd-setup)
+     ;;   (require 'flycheck-d-unittest)
+     ;;   (setup-flycheck-d-unittest)
+     ;;   (flycheck-dmd-dub-set-variables)
+     ;;   )
+   #+end_src
+* org-mode
+** org-bullets
+ 
+   Nice bullets for org-mode
+   #+begin_src emacs-lisp
+     (use-package org-bullets
+       :ensure t
+       :config
+       (add-hook 'org-mode-hook (lambda () (org-bullets-mode 1)))
+       )
+   #+end_src
