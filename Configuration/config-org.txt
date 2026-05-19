@@ -1,0 +1,52 @@
+;
+;; with this variable set the name and e-mail of user
+;;
+(setq user-full-name "Carlos M."
+      user-mail-address "ingcarlos.moran@gmail.com"
+      calendar-latitude 20.66682
+      calendar-longitude -103.39182
+      calendar-location-name "Guadalajara, Jalisco")
+	  
+;;;
+;;;;; install the melpa repository
+;;
+
+(setq package-archives (append package-archives
+			       '(("gnu" . "https://elpa.gnu.org/packages/")
+				 ("melpa" . "https://melpa.org/packages/")
+				 ("org" . "https://orgmode.org/elpa/"))))
+
+;;("org" . "http://orgmode.org/elpa/") necesario para instalar org-mode nesario
+;; para org-contacts, si no lo vas a utilizar lo puedes borrar
+
+(tool-bar-mode -1)                                            ; disable bar-mode
+(toggle-scroll-bar -1)                                        ; disablescroll-mode
+(tooltip-mode -1)                                             ; Desactiva tooltips
+(menu-bar-mode -1)                                            ; desactiva barra menu
+(fset 'yes-or-no-p 'y-or-n-p)                                 ; sustituye yes/no por y/n
+(display-time)                                                ; muestra el rekoj
+(line-number-mode t)                                          ;;
+(column-number-mode t)                                        ;; mode line settings
+(size-indication-mode t)                                      ;;
+(add-to-list 'default-frame-alist '(fullscreen . maximized))  ; pantalla completa
+(global-set-key (kbd "C-+") 'text-scale-increase)             ; Incrementa el tamaño de la funete
+(global-set-key (kbd "C--") 'text-scale-decrease)             ; Decrementa el tamaño de la funete
+(size-indication-mode t)                                      ; Muestra el tamaño del archivo
+(custom-set-variables
+ '(initial-frame-alist (quote ((fullscreen . maximized)))))   ; Fullscreen
+(setq
+ inhibit-startup-screen t                                     ; disable startup screen
+ display-time-24hr-format t                                   ; Muestra el reloj en formato 24 hrs
+ display-time-format "%H:%M"                                  ; Le da formato a la hora
+ ring-bell-function 'ignore                                   ; Elimina el sonido de la campana
+ load-prefer-newer t                                          ; Prefiere la versión más reciente de un archivo.
+ select-enable-clipboard t                                    ; Sistema de fusión y portapapeles de Emacs.
+ use-package-always-ensure t                                  ; Evita la clave :ensure para cada paquete
+ vc-follow-symlinks t                                         ; Siempre sigue los enlaces simbólicos.
+ make-backup-files nil                                        ; No realiza backups de ficheros
+ auto-save-default nil                                        ; Deshabilita #file#
+ ;org-footnote-section "Referencias:"                         ; cambio footnotes por referencias
+ global-hl-line-mode t                                        ; Highlight current line
+ kill-ring-max 128                                            ; Longitud máxima del anillo de matar
+ create-lockfiles nil                                         ; Impido la creación de ficheros .#
+ )

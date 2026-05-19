@@ -1,0 +1,1563 @@
+* Configuracion inicial del archivo orgmode
+{{{comment{esto es un comentario}}}} @@esto es otro comentario@@
+;; cualquier cambio teniendo abierto emacs, usar M-x eval-buffer para actualizar
+;; C:\Users\nxf82725\Documents\Workspace.emacs
+;;
+#-*- mode: org -*-
+#+STARTUP: showall
+#+STARTUP: lognotedone
+#+STARTUP: logdone
+#+startup: overview
+#+TITLE: Mi TODO
+#+AUTHOR:  Carlos Enrique Moran Garabito
+#+DATE:    15 de Septiembre de 2023
+#+OPTIONS: toc:nil :::toc:nil, que sirve para que al crear el documento, este no tenga tabla de contenidos. 
+#+LATEX_CLASS_OPTIONS: [a4paper,12pt,twoside]
+#+LATEX_HEADER: \usepackage{a4wide}
+#+DESCRIPTION: TODO que estoy haciendo en el trabajo
+#+SEQ_TODO: TSP-InProgress(P!) TSP-Waiting(Sw@/!) | TSP-Done(F!) 
+#+SEQ_TODO: DSP-InProgress(p!) DSP-Waiting(sw@/!) | DSP-Done(f!) 
+#+SEQ_TODO: TODO(t!) Waiting(w@/!) Someday(s@) IN-PROGRESS(i!) DELEGATED(D) Agendar(g)| DONE(d!) CANCELED(c@/!) ARCHIVAR(a!) TIRAR(T) 
+#+PRIORITIES: 1 2 3 4
+#+ARCHIVE: :: * Completed
+#+BEGIN_COMMENT comentario #+END_COMMENT
+
+* Comandos org
+#+BEGIN_COMMENT
+
+#+END_COMMENT
+* PreConfiguration for org
+** Configuracion inicial
+#+begin_src emacs-lisp
+  ;; =================================================================================
+  ;; Soporte para org-mode
+  ;; =================================================================================
+  ;; Configuración de Org Mode
+  ;; ======== 1. Estructura de archivos (base del sistema) ========
+  (require 'org)
+  (setq org-startup-indented t) ; Sangría visual
+  (setq org-startup-folded nil) ; Mostrar todo el contenido al abrir
+  (setq org-directory "C:/Editors/Emacs/Workspace.emacs/Org")  ; Directorio principal para archivos Org
+  (setq org-log-done t)
+  (setq org-agenda-files (list "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Agenda.org"))
+  ;;	"C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Solution.Tracker.org_done_2026.org"
+  ;;	"C:/Editors/Emacs/Workspace.emacs/Org.Workspace/casa.org"
+  ;;	"C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Checklist_Base_GS.org"
+  ;;	"C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Checklist_Base_xSP.org"
+  ;;(setq org-todo-files (		"C:/Editors/Emacs/Workspace.emacs/Org.Workspace/todo.org"))
+  (setq org-default-notes-file "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/notes.org") ; Archivo predeterminado para notas	
+  (defvar count-words-buffer
+    nil
+    ;; =================== "*Number of words in the buffer."     
+    )
+  (defun wicked/update-wc ()
+    ;;=================== "Whatever."
+    (interactive)
+    (setq count-words-buffer (number-to-string (count-words-buffer)))
+    (force-mode-line-update))
+  (unless count-words-buffer
+    (run-with-idle-timer 1 t 'wicked/update-wc))
+  (unless (memq 'count-words-buffer global-mode-string)
+    (add-to-list 'global-mode-string "words: " t)
+    (add-to-list 'global-mode-string 'count-words-buffer t))
+  (defun count-words-buffer ()
+    ;;================= "Count the number of words in the current paragraph."
+      (interactive)
+      (save-excursion
+        (goto-char (point-min))
+        (let ((count 0))
+          (while (not (eobp))
+            (forward-word 1)
+            (setq count (1+ count)))
+          count)))
+
+  (defun wicked/org-update-checkbox-count (&optional all)
+    ;; "Update the checkbox statistics in the current section.
+    ;; This will find all statistic cookies like [57%] and [6/12] and update
+    ;; them with the current numbers.  With optional prefix argument ALL,
+    ;; do this for the whole buffer."
+    (interactive "P")
+    (save-excursion
+      (let* ((buffer-invisibility-spec (org-inhibit-invisibility))
+             (beg (condition-case nil
+                      (progn (outline-back-to-heading) (point))
+                    (error (point-min))))
+             (end (move-marker
+                   (make-marker)
+                   (progn (or (outline-get-next-sibling) ;; (1)
+                              (goto-char (point-max)))
+                          (point))))
+             (re "\\(\\[[0-9]*%\\]\\)\\|\\(\\[[0-9]*/[0-9]*\\]\\)")
+             (re-box
+              "^[ \t]*\\(*+\\|[-+*]\\|[0-9]+[.)]\\) +\\(\\[[- X]\\]\\)")
+             b1 e1 f1 c-on c-off lim (cstat 0))
+        (when all
+          (goto-char (point-min))
+          (or (outline-get-next-sibling) (goto-char (point-max))) ;; (2)
+          (setq beg (point) end (point-max)))
+          (goto-char beg)
+          (while (re-search-forward re end t)
+            (setq cstat (1+ cstat)
+                  b1 (match-beginning 0)
+                  e1 (match-end 0)
+                  f1 (match-beginning 1)
+                  lim (cond
+                       ((org-on-heading-p)
+                        (or (outline-get-next-sibling) ;; (3)
+                            (goto-char (point-max)))
+                        (point))
+                       ((org-at-item-p) (org-end-of-item) (point))
+                       (t nil))
+                  c-on 0 c-off 0)
+            (goto-char e1)
+            (when lim
+              (while (re-search-forward re-box lim t)
+                (if (member (match-string 2) '("[ ]" "[-]"))
+                    (setq c-off (1+ c-off))
+                  (setq c-on (1+ c-on))))
+              (goto-char b1)
+              (insert (if f1
+                          (format "[%d%%]" (/ (* 100 c-on)
+                                              (max 1 (+ c-on c-off))))
+                        (format "[%d/%d]" c-on (+ c-on c-off))))
+              (and (looking-at "\\[.*?\\]")
+                   (replace-match ""))))
+          (when (interactive-p)
+            (message "Checkbox statistics updated %s (%d places)"
+                     (if all "in entire file" "in current outline entry")
+                     cstat)))))
+  (defadvice org-update-checkbox-count (around wicked activate)
+    ;; "Fix the built-in checkbox count to understand headlines."
+    (setq ad-return-value
+          (wicked/org-update-checkbox-count (ad-get-arg 1))))
+  ;; ============== https://gitlab.com/comacero/emacs_conf_step/-/blob/master/myinit.org?ref_type=heads
+  ;; =============================================================================
+  ;; ============== 2. Tags automáticos (contextos GTD) (coopilot)============
+  (setq org-tag-alist
+        '(("@work" . ?w)
+          ("@home" . ?h)
+          ("@online" . ?o)
+          ("@calls" . ?c)
+          ("@quick" . ?q)
+          ("project" . ?p)))
+  ;; Podrás asignar rápido: C-c C-c sobre un heading o C-c C-q.		
+  ;; ==========================================================
+  ;; ======== 3. org-capture (captura rápida tipo GTD) (coopilot) ========
+  (setq org-capture-templates
+        '(("i" "Inbox" entry
+           ;;(file+headline "~/org/gtd.org" " Inbox")
+  	 (file+headline "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Agenda.org" " Inbox")
+           "* TODO %?\n%U\n")
+  	
+          ("t" "Task (Next Action)" entry
+           (file+headline "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Agenda.org" " Next Actions")
+           "* TODO %? :@work:\n%U\n")
+  	
+          ("p" "Project" entry
+           (file+headline "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Agenda.org" " Projects")
+           "* TODO %? :project:\n%U\n** NEXT First action\n")
+  	
+          ("w" "Waiting" entry
+           (file+headline "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Agenda.org" " Waiting")
+           "* WAITING %? \n%U\n")
+  	
+          ("s" "Someday" entry
+           (file+headline "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Agenda.org" " Someday")
+           "* %? \n%U\n")))
+    ;; Uso
+  ;; C-c c i → capturar en Inbox
+  ;; C-c c t → acción directa
+  ;; C-c c p → proyecto
+  ;; =================================================
+  ;; ======== 4 Estados TODO (flujo GTD real) ========
+  (setq org-todo-keywords
+        '((sequence "TODO(t)" "NEXT(n)" "WAITING(w)" "|" "DONE(d)" "CANCELLED(c)")))
+  ;; Urgente, no urgente, importante, no importante	  
+  ;;  Lógica:
+  ;;	TODO → no procesada
+  ;;	NEXT → acción ejecutable
+  ;;	WAITING → depende de alguien más
+  ;;	DONE → completada	  
+  ;; =====================================================
+  ;; ======== 5. Org Agenda (el corazón del sistema) (coopilot) ========
+  (setq org-agenda-custom-commands
+        '(("g" "GTD Dashboard"
+           ((agenda "")
+            (todo "NEXT")
+            (tags-todo "@work")
+            (tags-todo "@home")
+            (todo "WAITING")
+            (todo "TODO")))))
+  ;; M-x org-agenda → g
+  ;; ======================================================	 
+  ;; ======== 6  Forzar GTD limpio (coopilot) ========
+  (defun my/org-project-p ()
+    (and (org-get-tags)
+         (member "project" (org-get-tags))))
+
+  (defun my/org-has-next-action-p ()
+    (save-excursion
+      (org-map-entries
+       (lambda () t)
+       "TODO=\"NEXT\"" 'tree)))
+
+  (defun my/org-stuck-projects ()
+    (org-scan-tags
+     '(and (tags "project")
+           (not (todo "NEXT")))))
+    
+  ;; ===============================================
+  ;; ======== 7. Separar automáticamente contextos (coopilot) =
+  ;; Autotag según ubicación (opcional más avanzado):
+  (defun my/org-auto-context ()
+    (when (string-match "call\\|phone" (downcase (or (thing-at-point 'line) "")))
+      (org-set-tags ":@calls:")))
+
+  (add-hook 'org-capture-mode-hook 'my/org-auto-context)
+  ;; ===============================================
+  ;; ======== 8. Revisión semanal (clave GTD) (coopilot) ========
+  (setq org-agenda-custom-commands
+        '(("r" "Weekly Review"
+           ((stuck "")
+            (tags "project")
+            (todo "WAITING")
+            (todo "TODO")
+            (agenda "")))))
+  ;; ===============================================
+  ;; ======== flujo GTD ========
+  ;; Flujo real de uso (importante)
+  ;; 1. Captura
+  ;; C-c c → Inbox
+  ;; 2. Procesa Inbox
+  ;; mover con C-c C-w
+  ;; decidir:
+  ;; Next action → NEXT
+  ;; Proyecto → tag :project:
+  ;; Waiting / Someday
+  ;; 3. Ejecuta
+  ;; M-x org-agenda → g
+  ;; → trabaja SOLO desde NEXT
+  ;; 4. Revisión
+  ;; diaria: limpiar inbox
+  ;; semanal: org-agenda r
+  ;; ===============================================
+  ;; ======== 9. Bonus: mejoras pro ========
+  (setq org-log-done 'time) ''
+  ;;``
+  ;; Si quieres, en el siguiente paso puedo darte:
+  ;; integración con calendario (Google/Outlook)
+  ;; UI tipo dashboard bonito (org-super-agenda)
+  ;; o automatizar prioridades según energía/horario
+
+  ;; ===============================================
+  ;; ======== Estados TODO (flujo GTD real) ========
+  ;; ===============================================
+  
+#+end_src
+** Set shortcuts
+
+#+BEGIN_COMMENT
+;; ========================= {{{comment{Useful shortcuts}}}}
+;; ========================= {{{comment{ \e es la tecla de escape \ec es escape + c}}}}
+;; ========================= {{{comment{ para acceder al myinit.org presionar esc esc c}}}}
+#+END_COMMENT
+#+begin_src emacs-lisp
+
+  (global-set-key (kbd "\e\et")
+                  (lambda () (interactive) (find-file "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Solution.Tracker.org_done_2026.org"))
+                  )
+  (global-set-key (kbd "\e\eg")
+                  (lambda () (interactive) (find-file "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Template.Checklist.GS.org"))
+                  )
+  (global-set-key (kbd "\e\ex")
+  		(lambda () (interactive) (find-file "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Template.Base.xSP.org"))
+                  )
+  (global-set-key (kbd "\e\er")
+  		(lambda () (interactive) (find-file "C:/Editors/Emacs/Workspace.emacs/PM.Workspace/reports.tji"))
+                  )					 
+  (global-set-key (kbd "\e\ep")
+  		(lambda () (interactive) (find-file "C:/Editors/Emacs/Workspace.emacs/PM.Workspace/template.tjp"))
+  		)	
+  (global-set-key (kbd "\e\ea")
+  		(lambda () (interactive) (find-file "C:/Editors/Emacs/Workspace.emacs/Org.Workspace/Agenda.org"))
+  		)				
+  (global-set-key (kbd "\e\ec")
+                  (lambda () (interactive) (find-file "C:/Users/nxf82725/AppData/Roaming/.emacs.d/Configuration/myinit.org"))
+                  )
+  (global-set-key [C-tab] 'hippie-expand)                    ; expand
+  (global-set-key [C-kp-subtract] 'undo)                     ; [Undo]
+  (global-set-key [C-kp-multiply] 'goto-line)                ; goto line
+  (global-set-key [C-kp-add] 'toggle-truncate-lines)         ; truncate lines
+  (global-set-key [C-kp-divide] 'delete-trailing-whitespace) ; delete trailing whitespace
+  (global-set-key [C-kp-decimal] 'completion-at-point)       ; complete at point
+  (global-set-key [C-M-prior] 'previous-buffer)              ; previous-buffer
+  (global-set-key [C-M-next] 'next-buffer)                   ; next-buffer
+
+  ;; ======== Atajos globales para Org Mode
+  (global-set-key (kbd "C-c l") 'org-store-link)	
+  (global-set-key (kbd "C-c a") 'org-agenda)
+  (global-set-key (kbd "C-c c") 'org-capture)
+  ;;(define-key global-map "\C-cl" 'org-store-link)
+  ;;(define-key global-map "\C-ca" 'org-agenda); abre agenda
+#+end_src
+
+* Interface tweaks
+** Some GUI optimizations
+#+begin_src emacs-lisp
+  (setq inhibit-startup-message t) ; Eliminate FSF startup msg
+  (setq frame-title-format "%b")   ; Put filename in titlebar
+  ;; (setq visible-bell t)            ; Flash instead of beep
+  (set-scroll-bar-mode 'right)     ; Scrollbar placement
+  (show-paren-mode t)              ; Blinking cursor shows matching parentheses
+  (electric-pair-mode t)           ; electric-pair-mode on
+  (setq column-number-mode t)      ; Show column number of current cursor location
+  (mouse-wheel-mode t)             ; wheel-mouse support
+  (setq fill-column 78)
+  (setq auto-fill-mode t)                   ; Set line width to 78 columns...
+  (setq-default indent-tabs-mode nil)       ; Insert spaces instead of tabs
+  (global-set-key "\r" 'newline-and-indent) ; turn autoindenting on
+  ;;(set-default 'truncate-lines t)          ; Truncate lines for all buffers
+  ;; =============================================================================  
+  #+end_src 
+** Set encoding
+#+BEGIN_COMMENT  
+:: Use utf-8 please
+;; I always start a clock when I work on a task. And for the Pomodoro
+;; technique I use also the org-timer module with some configuration.
+;; Activate the org-timer module :
+;; === https://gitlab.com/comacero/emacs_conf_step/-/blob/master/myinit.org?ref_type=heads
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (add-to-list 'org-modules 'org-timer)
+  ;; Set a default value for the timer, for example :
+  (setq org-timer-default-timer 25)
+  ;; Modify the org-clock-in so that a timer is started with the default
+  ;; value except if a timer is already started :
+  (add-hook 'org-clock-in-hook (lambda ()
+  			       (if (not org-timer-current-timer)
+  				   (org-timer-set-timer '(16)))))
+  ;; Set encoding
+  (prefer-coding-system 'utf-8)
+  ;; ===========================================================================================
+#+end_src
+
+** Own map
+#+begin_src emacs-lisp
+  ;;Defines own key map
+  (define-prefix-command 'own-map)
+  (global-set-key (kbd "C-ñ") 'own-map)
+  (define-key own-map (kbd "y") 'aya-create)
+  (define-key own-map (kbd "e") 'aya-expand)
+#+end_src
+
+** Syntax highlight   
+#+begin_src emacs-lisp
+  ;;Set maximum colors  
+  (cond ((fboundp 'global-font-lock-mode)        ; Turn on font-lock (syntax highlighting)
+         (global-font-lock-mode t)               ; in all modes that support it
+         (setq font-lock-maximum-decoration t))) ; Maximum colors
+#+end_src
+
+** Kill buffer quick
+
+#+begin_src emacs-lisp
+  ;;------------------------------------------------------------
+  ;; Kill Buffer Quick de las lineas 53 a la 64 define una función para matar el buffer
+  ;; (fichero) que estamos editando sin tener que recorrer todo el diálogo por defecto en Emacs y lo asocia a Ctrl-Supr
+  ;; Kill current buffer without questions     
+  ;; Kill current buffer with C-Supr
+  (defun geosoft-kill-buffer ()
+    ;; Kill default buffer without the extra emacs questions
+    (interactive)
+    (kill-buffer (buffer-name))
+    (set-name))
+  (global-set-key [C-delete] 'geosoft-kill-buffer)
+#+end_src
+
+** Wonderful bubble-buffer
+#+BEGIN_COMMENT 
+;;------------------------------------------------------------
+;; The wonderful bubble-buffer
+;; Wonderful Bubble Buffer Mantiene un listado de ficheros recientes por el que podemos movernos con la tecla F8 
+;;(cuando visitamos un buffer asciende en la lista como una burbuja) Siempre puedes moverte normalmente por los buffers 
+;; abiertos con Shift-PgUp y Shift-PgDown que definimos en la sección de Shortcuts
+;; Switch to most recent buffers with F8
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (defvar LIMIT 1)
+  (defvar time 0)
+  (defvar mylist nil)
+  (defun time-now ()
+    (car (cdr (current-time))))
+  (defun bubble-buffer ()
+    (interactive)
+    (if (or (> (- (time-now) time) LIMIT) (null mylist))
+        (progn (setq mylist (copy-alist (buffer-list)))
+               (delq (get-buffer " *Minibuf-0*") mylist)
+               (delq (get-buffer " *Minibuf-1*") mylist)))
+    (bury-buffer (car mylist))
+    (setq mylist (cdr mylist))
+    (setq newtop (car mylist))
+    (switch-to-buffer (car mylist))
+    (setq rest (cdr (copy-alist mylist)))
+    (while rest
+      (bury-buffer (car rest))
+      (setq rest (cdr rest)))
+    (setq time (time-now)))
+  (global-set-key [f8] 'bubble-buffer)
+#+end_src
+
+** parent matching with %
+#+BEGIN_COMMENT
+  ;;------------------------------------------------------------
+  ;; Use % to match various kinds of brackets...
+  ;; See: http://www.lifl.fr/~hodique/uploads/Perso/patches.el
+  ;; parent matching with % Nos permite saltar al parentesis asociado con el que 
+  ;; señale el cursor sin más que pulsar % (imitando a otros editores como Vim)
+  ;; Jump to asociated parent with '%' same as other editors
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (global-set-key "%" 'match-paren)   ; % key match parents
+  (defun match-paren (arg)
+    "Go to the matching paren if on a paren; otherwise insert %."
+    (interactive "p")
+    (let ((prev-char (char-to-string (preceding-char)))
+          (next-char (char-to-string (following-char))))
+      (cond ((string-match "[[{(<]" next-char) (forward-sexp 1))
+            ((string-match "[\]})>]" prev-char) (backward-sexp 1))
+            (t (self-insert-command (or arg 1))))))
+#+end_src
+
+** use-package
+#+BEGIN_COMMENT
+  ;; use-package tips
+  ;; A continuación tenemos una seccion dedicada a use-package en esta sección solucionamos el error de las 
+  ;; nuevas claves GPG de Elpa instalando un paquete con las nuevas claves (para lo cual desactivamos un momento 
+  ;; la verificación de claves). E instalamos otro paquete que nos permitirá especificar en el futuro si hay paquetes 
+  ;; de sistema que sean dependencias necesarias para nuestras ampliaciones de Emacs. Además instalamos try para poder 
+  ;; probar paquetes Emacs sin tocar la configuración ni afectarla con la prueba.
+
+  ;;  Some notes about *use-package*
+  ;;  - *:ensure* if true will install the package if not installed
+  ;;    It won't update packages. See auto-package-update for keeping all
+  ;;    packages up to date
+  ;;  - *:init* keyword to execute code before a package is loaded. It
+  ;;    accepts one or more foorms, up to the next keyword
+  ;;  - *:config* can be used to execute code after a package is loaded.
+  ;;    In cases where loading is done lazily (see more about autoloading
+  ;;    below), this execution is deferred until after the autoload
+  ;;    occurs
+  ;;  - *:bind*
+  ;;  - *bind-keymap*
+  ;;  - *:mode* and *:interpreter*
+  ;;  - *:magic*
+  ;;  - *:hook*
+  ;;  - *:if*
+  ;;  - *:flymake
+  ;;  - *:nyan-mode
+  ;;  - *:nyan-prompt
+  ;;  - *:rainbow-delimiters
+  ;;  - *:column-enforce-mode
+  ;;  - *:linum
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  ;;** helpers
+  ;;   =gnu-elpa-keyring-update= Avoids GPG errors in emacs version prior
+  ;;   to 26.3 And =use-package-ensure-system-package= gives a warning
+  ;;   when needed system packages are missing
+  ;;   #+begin_src emacs-lisp
+  ;;     (unless (package-installed-p 'gnu-elpa-keyring)
+  ;;       (setq package-check-signature nil)
+  ;;       (use-package gnu-elpa-keyring-update
+  ;;         :ensure t)
+  ;;       (setq package-check-signature 'allow-unsigned))
+  ;;     (use-package use-package-ensure-system-package
+  ;;       :ensure t)
+  ;;   #+end_src
+#+end_src
+** try
+#+begin_src emacs-lisp
+  ;; To try package without definitive installation
+  (use-package try
+     ;; for trying packages without installing
+     :ensure t)
+#+end_src
+** org-bullets
+#+BEGIN_COMMENT
+Nice bullets for org-mode
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (use-package org-bullets
+    :ensure t
+    :config
+    (add-hook 'org-mode-hook (lambda () (org-bullets-mode 1)))
+    )
+#+end_src
+   
+* ace-windows
+#+BEGIN_COMMENT
+;; Emacs es un software que se inventó bastante antes del concepto de ventanas que manejamos ahora en casi 
+;; todos los sistemas operativos. Por esa razón usa una terminología algo arcaica. Las ventanas que conocemos 
+;; en cualquier entorno gráfico se llaman frames en Emacs y las secciones en las que podemos dividir una ventana 
+;; del editor se llaman windows.0
+
+;; Para que quede claro puedes probar a dividir tu pantalla de Emacs en varias ventanas usando C-x 2 o C-x 3 unas 
+;; cuantas veces. Si lo que quieres es abrir un nuevo frame el comando sería C-x 4 f
+
+;; ace-windows es un paquete que nos ayuda cuando tenemos varias windows de Emacs y queremos cambiar de ventana con el
+;; comando C-x o. Todas las ventanas abiertas mostrarán un número y no tenemos más que teclear el número elegido para 
+;; saltar a la ventana que queramos.
+
+To jump to different windows easily
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+   (use-package ace-window
+     :ensure t
+     :init
+     (global-set-key [remap other-window] 'ace-window)
+     (custom-set-faces
+      '(aw-leading-char-face
+        ((t (:inherit ace-jump-face-foreground :height 3.0)))))
+     )
+#+end_src
+
+* which-key
+#+BEGIN_COMMENT 
+;; which-key es un paquete que nos facilita la vida al teclear comandos. Prueba a teclear C-x (el prefijo de muchísimos 
+;; comandos en nuestro editor) antes y después de instalar el paquete para ver la diferencia.
+
+;; which-key nos permite ir construyendo el comando poco a poco, podemos borrar el último caracter introducido con C-h u
+;; Si tenemos varias páginas de posibles combinaciones podemos usar C-h n y C-h p para movernos a la siguiente (next) o 
+;; anterior (prior)
+;; Si ponemos el cursor del ratón encima de alguna de las sugerencias que nos aparecen en la miniconsola veremos un texto 
+;; de documentación del comando.
+;; C-h a aborta el comando
+
+;; which-key funcionará incluso con los atajos de teclado que nosotros configuremos. En cambio no funcionará con M-x 
+;; (execute-extended-command) y es buena cosa que no lo haga. Se calcula que Emacs es capaz de ejecutar unos diezmil 
+;; comandos y eso antes de que instalemos ningún paquete opcional. De todas formas en el siguiente apartado instalaremos 
+;; un paquete que nos ayudará con eso también.
+
+  Some help with hotkeys
+#+END_COMMENT
+#+begin_src emacs-lisp
+  (use-package which-key
+    ;; give us help for keys in RT
+    :ensure t
+    :config (which-key-mode))
+#+end_src
+
+* ivy - counsel - swipper
+#+BEGIN_COMMENT 
+;; ivy es un gestor de listas. La lista gestionada puede ser de casi cualquier cosa. Podría ser una lista de ficheros si 
+;; hemos invocado la función de cargar fichero. O podría ser una lista de coincidencias si estamos buscando una palabra en 
+;; el editor, o una lista de comandos si estamos tecleando un comando en el minibuffer.
+
+;; ivy por si solo sería un poco difícil de usar, así que se instalan también swipper que nos va a dar un interfaz de 
+;; búsquedas mejorado dentro del fichero que estamos editando, y counsel que añade muchas funcionalidades apoyándose en ivy. 
+;; En realidad si instalamos counsel los otros dos paquetes vienen como dependencias.
+
+;; Una vez instalados los paquetes no tenemos más que teclear M-x para verlos en acción. Si os fijais ivy añade un caracter ‘^’ 
+;; a la cadena de búsqueda. Ese caracter significa “principio de la cadena” en regexp, así que si tecleo window, ivy filtrará 
+;; todos los comandos que empiecen por window. Si borro el ‘^’ y tecleo window, entonces ivy me devolverá todos los comandos 
+;; que contengan la cadena window. Ya veis que con la funcionalidad combinada de counsel e ivy puedo buscar comandos en el 
+;; minibuffer de M-x sin saber exactamente como se llaman.
+
+  An enhanced incremental search and a lot of features from counsel
+
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (use-package counsel
+    :ensure t
+    :bind
+    (("C-S-o" . counsel-rhythmbox)
+     ("M-x" . counsel-M-x)
+     ("C-x C-f" . counsel-find-file)
+     ("<f1> f" . counsel-describe-function)
+     ("<f1> v" . counsel-describe-variable)
+     ("<f1> l" . counsel-load-library)
+     ("<f2> i" . counsel-info-lookup-symbol)
+     ("<f2> u" . counsel-unicode-char)
+     ("C-c g" . counsel-git)
+     ("C-c j" . counsel-git-grep)
+     ;; ("C-c k" . counsel-ag)    requires installation: apt install silversearcher-ag
+     ("C-x l" . counsel-locate)
+     ("M-y" . counsel-yank-pop)
+     :map ivy-minibuffer-map
+     ("M-y" . ivy-next-line))
+    )
+  ;; Takes care of elections menus
+  (use-package ivy
+    :ensure t
+    :diminish (ivy-mode)
+    :bind
+    (("C-x b" . ivy-switch-buffer)
+     ("<f6>" . ivy-resume)
+    )
+    :config
+    (ivy-mode 1)
+    (setq ivy-use-virtual-buffers t
+          ivy-count-format "%d/%d "
+          ivy-display-style 'fancy)
+    )
+
+  (use-package swiper
+    :ensure t
+    :bind
+    (("C-s" . swiper)
+     ("C-r" . swiper-isearch-backward)
+     :map minibuffer-local-map
+     ("C-r" . counsel-minibuffer-history)
+    )
+    :config
+    (ivy-mode 1)
+    (setq ivy-use-virtual-buffers t)
+    )
+#+end_src
+
+* hydra
+#+BEGIN_COMMENT 
+;; hydra permite montar “árboles de comandos” en la configuración propuesta vienen tres árboles configurados: uno de comandos 
+;; que conmutan entre dos estados, uno de comandos de navegación, y otro de comandos para org-mode
+
+;; Más adelante usaremos hydra para implementar nuevos árboles de comandos.
+
+  Defines command trees (so to speak)
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (use-package hydra
+    :ensure t)
+#+end_src
+
+** Hydra for toggle modes
+#+begin_src emacs-lisp
+  (global-set-key
+   (kbd "C-x t")
+   (defhydra toggle (:color blue)
+     "toggle"
+     ("a" abbrev-mode "abbrev")
+     ("s" flyspell-mode "flyspell")
+     ("d" toggle-debug-on-error "debug")
+     ("c" fci-mode "fCi")
+     ("f" auto-fill-mode "fill")
+     ("t" toggle-truncate-lines "truncate")
+     ("w" whitespace-mode "whitespace")
+     ("q" nil "cancel")
+     )
+   )
+#+end_src
+
+** Hydra for navigation
+#+begin_src emacs-lisp
+  (global-set-key
+   (kbd "C-x j")
+   (defhydra gotoline
+     (:pre (linum-mode 1)
+      :post (linum-mode -1))
+     "goto"
+     ("t" (lambda () (interactive)(move-to-window-line-top-bottom 0)) "top")
+     ("b" (lambda () (interactive)(move-to-window-line-top-bottom -1)) "bottom")
+     ("m" (lambda () (interactive)(move-to-window-line-top-bottom)) "middle")
+     ("e" (lambda () (interactive)(end-of-buffer)) "end")
+     ("c" recenter-top-bottom "recenter")
+     ("n" next-line "down")
+     ("p" (lambda () (interactive) (forward-line -1))  "up")
+     ("g" goto-line "goto-line")
+     )
+   )
+#+end_src
+
+** Hydra for some org-mode stuff
+#+begin_src emacs-lisp
+  (global-set-key
+   (kbd "C-c t")
+   (defhydra hydra-global-org (:color blue)
+     "Org"
+     ("t" org-timer-start "Start Timer")
+     ("s" org-timer-stop "Stop Timer")
+     ("r" org-timer-set-timer "Set Timer") ; This one requires you be in an orgmode doc, as it sets the timer for the header
+     ("p" org-timer "Print Timer") ; output timer value to buffer
+     ("w" (org-clock-in '(4)) "Clock-In") ; used with (org-clock-persistence-insinuate) (setq org-clock-persist t)
+     ("o" org-clock-out "Clock-Out") ; you might also want (setq org-log-note-clock-out t)
+     ("j" org-clock-goto "Clock Goto") ; global visit the clocked task
+     ("c" org-capture "Capture") ; Don't forget to define the captures you want http://orgmode.org/manual/Capture.html
+     ("l" (or )rg-capture-goto-last-stored "Last Capture")
+     )
+   )
+#+end_src
+
+* avy
+#+BEGIN_COMMENT 
+Quick navigation to words
+;; avy es un paquete que permite moverse rápidamente por el fichero editado sin usar el ratón. Con la configuración que ves 
+;; aquí te permite teclear dos caracteres y marcará todas las coincidencias en el fichero cada una con una letra-atajo diferente. 
+;; Puedes moverte a cualquier coincidencia sin mas que teclear su código. La verdad es que no la uso mucho.
+#+END_COMMENT  
+
+#+begin_src emacs-lisp
+  ;; avy
+  (use-package avy
+    :ensure t
+    :config
+    (avy-setup-default)
+    :bind(
+          ("M-g c" . avy-goto-char-2)
+          )
+    )
+#+end_src
+  
+* iedit
+#+BEGIN_COMMENT 
+Interactive edition of all ocurrences of X
+;; iedit es mucho más interesante, si entramos en el iedit-mode pulsando C-; iedit seleccionará todas las ocurrencias, en todo el 
+;; fichero, del símbolo bajo el cursor (o de lo que tengamos selecionado en la región si está activa) y nos permitirá editar todas 
+;; las ocurrencias de una sola vez. Con iedit activado la combinación M-h lo restringe a la función actual (muy útil si estamos 
+;; programando). Hay muchas mas formas de restricción, lo mejor es leer la descripción del modo (C-h m iedit-mode). Cuando 
+;; terminemos la edición pulsamos de nuevo C-;
+#+END_COMMENT
+  
+#+begin_src emacs-lisp
+  (use-package iedit
+    :ensure t)
+#+end_src
+
+* color-theme
+#+BEGIN_COMMENT 
+Get some colour in your life
+;; Aun no he trabajado mucho en los temas, tengo configurado el leuven_theme y parece que hace un buen trabajo. Los ficheros 
+;; org-mode se ven bien y no tengo ningún problema editando texto o programando.
+
+;; Aun no tengo ningún tema dark bien probado. Y también tengo pendientes investigar los temas doom. Si consigo probarlos a tiempo 
+;; les dedicaré un artículo dentro de esta serie.
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (use-package color-theme-modern
+    :ensure t)
+  (use-package leuven-theme
+    :ensure t
+    ;; :config
+    ;; (load-theme 'leuven-dark t)
+    ;; (setq leuven-scale-outline-headlines t)
+    ;; (setq leuven-scale-org-agenda-structure nil)
+    )
+ #+end_src
+
+* projectile
+#+BEGIN_COMMENT
+https://github.com/bbatsov/projectile
+Projectile is a project interaction library for Emacs. It provides a powerful set of features operating at the project level, as well as simple heuristics to identify projects.
+
+Here are some of essential Projectile's features:
+
+jump to a file in project
+jump to a project buffer
+jump to a test in project
+toggle between files with same names but different extensions (e.g. .h <-> .c/.cpp, Gemfile <-> Gemfile.lock)
+toggle between code and its test (e.g. main.service.js <-> main.service.spec.js)
+jump to recently visited files in the project
+switch between projects you have worked on
+kill (close) all project buffers
+grep (search) in project
+replace in project
+find references in project (using xref internally)
+run shell commands in a project (e.g. make, lein)
+support for multiple minibuffer completion/selection libraries (ido, ivy, helm, and the default completion system)
+automatic project discovery (see projectile-project-search-path)
+integration with the built-in project.el library
+There's also a rich ecosystem of third-party Projectile extensions that add even more features.
+
+Work project-oriented
+  
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (use-package projectile
+    :ensure t
+    :config
+    (projectile-global-mode)
+    (define-key projectile-mode-map (kbd "C-c p") 'projectile-command-map)
+    (setq projectile-completion-system 'ivy)
+    )
+
+  (use-package counsel-projectile
+    :ensure t
+    :config
+    (setq counsel-projectile-mode t)
+    )
+#+end_src
+
+* git
+#+BEGIN_COMMENT 
+All you need for git
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (use-package magit
+    :ensure t
+    :init
+    (progn
+      (bind-key "C-x g" 'magit-status)
+      )
+    )
+
+  (setq magit-status-margin
+        '(t "%Y-%m-%d %H:%M " magit-log-margin-width t 18))
+
+  (use-package git-gutter
+    :ensure t
+    :init
+    (global-git-gutter-mode +1)
+    )
+
+  (global-set-key (kbd "M-g M-g") 'hydra-git-gutter/body)
+
+  (use-package git-timemachine
+    :ensure t
+    )
+
+  (defhydra hydra-git-gutter (:body-pre (git-gutter-mode 1)
+                              :hint nil)
+    "
+    Git gutter:
+      _j_: next hunk        _s_tage hunk     _q_uit
+      _k_: previous hunk    _r_evert hunk    _Q_uit and deactivate git-gutter
+      ^ ^                   _p_opup hunk
+      _h_: first hunk
+      _l_: last hunk        set start _R_evision
+    "
+    ("j" git-gutter:next-hunk)
+    ("k" git-gutter:previous-hunk)
+    ("h" (progn (goto-char (point-min))
+                (git-gutter:next-hunk 1)))
+    ("l" (progn (goto-char (point-min))
+                (git-gutter:previous-hunk 1)))
+    ("s" git-gutter:stage-hunk)
+    ("r" git-gutter:revert-hunk)
+    ("p" git-gutter:popup-hunk)
+    ("R" git-gutter:set-start-revision)
+    ("q" nil :color blue)
+    ("Q" (progn (git-gutter-mode -1)
+                ;; git-gutter-fringe doesn't seem to
+                ;; clear the markup right away
+                (sit-for 0.1)
+                (git-gutter:clear))
+     :color blue))
+#+end_src
+
+* yasnippet
+#+BEGIN_COMMENT
+YASnippet is a template system for Emacs. It allows you to type an abbreviation and automatically expand it into function templates. Bundled language templates include: C, C++, C#, Perl, Python, Ruby, SQL, LaTeX, HTML, CSS and more. The snippet syntax is inspired from TextMate's syntax, you can even import most TextMate templates to YASnippet. Watch a demo on YouTube.
+https://joaotavora.github.io/yasnippet/snippet-development.html
+
+Writing snippets
+Table of Contents
+Snippet development
+Quickly finding snippets
+Using the snippet-mode major mode
+File content
+# key: snippet abbrev
+# name: snippet name
+# condition: snippet condition
+# group: snippet menu grouping
+# expand-env: expand environment
+# binding: direct keybinding
+# type: snippet or command
+# uuid: unique identifier
+# contributor: snippet author
+Template Syntax
+Plain Text
+Embedded Emacs-lisp code
+Note: backquote expressions should not modify the buffer
+Tab stop fields
+Placeholder fields
+Mirrors
+Mirrors with transformations
+Fields with transformations
+Choosing fields value from a list and other tricks
+Nested placeholder fields
+Indentation markers
+Snippet development
+Quickly finding snippets
+There are some ways you can quickly find a snippet file or create a new one:
+
+M-x yas-new-snippet, key bindind: C-c & C-n
+
+Creates a new buffer with a template for making a new snippet. The buffer is in snippet-mode (see below). When you are done editing the new snippet, use C-c C-c to save it.
+
+M-x yas-visit-snippet-file, key binding: C-c & C-v
+
+Prompts you for possible snippet expansions like yas-insert-snippet, but instead of expanding it, takes you directly to the snippet definition's file, if it exists.
+
+Once you find this file it will be set to snippet-mode (see ahead) and you can start editing your snippet.
+
+Using the snippet-mode major mode
+There is a major mode snippet-mode to edit snippets. You can set the buffer to this mode with M-x snippet-mode. It provides reasonably useful syntax highlighting.
+
+Three commands are defined in this mode:
+
+M-x yas-load-snippet-buffer, key binding: C-c C-l
+
+Prompts for a snippet table (with a default based on snippet's major mode) and loads the snippet currently being edited.
+
+M-x yas-load-snippet-buffer-and-close, key binding: C-c C-c
+
+Like yas-load-snippet-buffer, but also saves the snippet and calls quit-window. The destination is decided based on the chosen snippet table and snippet collection directly (defaulting to the first directory in yas-snippet-dirs (see Organizing Snippets for more detail on how snippets are organized).
+
+M-x yas-tryout-snippet, key binding: C-c C-t
+
+When editing a snippet, this opens a new empty buffer, sets it to the appropriate major mode and inserts the snippet there, so you can see what it looks like.
+
+There are also snippets for writing snippets: vars, $f and $m :-).
+
+File content
+A file defining a snippet generally contains the template to be expanded.
+
+Optionally, if the file contains a line of # --, the lines above it count as comments, some of which can be directives (or meta data). Snippet directives look like # property: value and tweak certain snippets properties described below. If no # -- is found, the whole file is considered the snippet template.
+
+Here's a typical example:
+
+# contributor: pluskid <pluskid@gmail.com>
+# name: __...__
+# --
+__${init}__
+Here's a list of currently supported directives:
+
+# key: snippet abbrev
+This is the probably the most important directive, it's the abbreviation you type to expand a snippet just before hitting the key that runs yas-expand. If you don't specify this, the snippet will not be expandable through the trigger mechanism.
+
+# name: snippet name
+This is a one-line description of the snippet. It will be displayed in the menu. It's a good idea to select a descriptive name for a snippet – especially distinguishable among similar snippets.
+
+If you omit this name, it will default to the file name the snippet was loaded from.
+
+# condition: snippet condition
+This is a piece of Emacs-lisp code. If a snippet has a condition, then it will only be expanded when the condition code evaluate to some non-nil value.
+
+See also yas-buffer-local-condition in Expanding snippets
+
+# group: snippet menu grouping
+When expanding/visiting snippets from the menu-bar menu, snippets for a given mode can be grouped into sub-menus . This is useful if one has too many snippets for a mode which will make the menu too long.
+
+The # group: property only affect menu construction (See the YASnippet menu) and the same effect can be achieved by grouping snippets into sub-directories and using the .yas-make-groups special file (for this see Organizing Snippets
+
+Refer to the bundled snippets for ruby-mode for examples on the # group: directive. Group can also be nested, e.g. control structure.loops tells that the snippet is under the loops group which is under the control structure group.
+
+# expand-env: expand environment
+This is another piece of Emacs-lisp code in the form of a let varlist form, i.e. a list of lists assigning values to variables. It can be used to override variable values while the snippet is being expanded.
+
+Interesting variables to override are yas-wrap-around-region and yas-indent-line (see Expanding Snippets).
+
+As an example, you might normally have yas-indent-line set to 'auto and yas-wrap-around-region set to t, but for this particularly brilliant piece of ASCII art these values would mess up your hard work. You can then use:
+
+# name: ASCII home
+# expand-env: ((yas-indent-line 'fixed) (yas-wrap-around-region 'nil))
+# --
+                welcome to my
+            X      humble
+           / \      home,
+          /   \      $0
+         /     \
+        /-------\
+        |       |
+        |  +-+  |
+        |  | |  |
+        +--+-+--+
+# binding: direct keybinding
+You can use this directive to expand a snippet directly from a normal Emacs keybinding. The keybinding will be registered in the Emacs keymap named after the major mode the snippet is active for.
+
+Additionally a variable yas-prefix is set to to the prefix argument you normally use for a command. This allows for small variations on the same snippet, for example in this "html-mode" snippet.
+
+# name: <p>...</p>
+# binding: C-c C-c C-m
+# --
+<p>`(when yas-prefix "\n")`$0`(when yas-prefix "\n")`</p>
+This binding will be recorded in the keymap html-mode-map. To expand a paragraph tag newlines, just press C-u C-c C-c C-m. Omitting the C-u will expand the paragraph tag without newlines.
+
+# type: snippet or command
+If the type directive is set to command, the body of the snippet is interpreted as lisp code to be evaluated when the snippet is triggered.
+
+If it's snippet (the default when there is no type directive), the snippet body will be parsed according to the Template Syntax, described below.
+
+# uuid: unique identifier
+This provides to a way to identify a snippet, independent of its name. Loading a second snippet file with the same uuid would replace the previous snippet.
+
+# contributor: snippet author
+This is optional and has no effect whatsoever on snippet functionality, but it looks nice.
+
+Template Syntax
+The syntax of the snippet template is simple but powerful, very similar to TextMate's.
+
+Plain Text
+Arbitrary text can be included as the content of a template. They are usually interpreted as plain text, except $ and `. You need to use \ to escape them: \$ and \`. The \ itself may also needed to be escaped as \\ sometimes.
+
+Embedded Emacs-lisp code
+Emacs-Lisp code can be embedded inside the template, written inside back-quotes (`). The lisp forms are evaluated when the snippet is being expanded. The evaluation is done in the same buffer as the snippet being expanded.
+
+Here's an example for c-mode to calculate the header file guard dynamically:
+
+#ifndef ${1:_`(upcase (file-name-nondirectory (file-name-sans-extension (buffer-file-name))))`_H_}
+#define $1
+
+$0
+
+#endif /* $1 */
+From version 0.6, snippets expansions are run with some special Emacs-lisp variables bound. One of this is yas-selected-text. You can therefore define a snippet like:
+
+for ($1;$2;$3) {
+  `yas-selected-text`$0
+}
+to "wrap" the selected region inside your recently inserted snippet. Alternatively, you can also customize the variable yas-wrap-around-region to t which will do this automatically.
+
+Note: backquote expressions should not modify the buffer
+Please note that the lisp forms in backquotes should not modify the buffer, doing so will trigger a warning. For example, instead of doing
+
+Timestamp: `(insert (current-time-string))`
+do this:
+
+Timestamp: `(current-time-string)`
+The warning may be suppressed with the following code in your init file:
+
+(add-to-list 'warning-suppress-types '(yasnippet backquote-change))
+Tab stop fields
+Tab stops are fields that you can navigate back and forth by TAB and S-TAB. They are written by $ followed with a number. $0 has the special meaning of the exit point of a snippet. That is the last place to go when you've traveled all the fields. Here's a typical example:
+
+<div$1>
+    $0
+</div>
+Placeholder fields
+Tab stops can have default values – a.k.a placeholders. The syntax is like this:
+
+${N:default value}
+They act as the default value for a tab stop. But when you first type at a tab stop, the default value will be replaced by your typing. The number can be omitted if you don't want to create mirrors or transformations for this field.
+
+Mirrors
+We refer the tab stops with placeholders as a field. A field can have mirrors. All mirrors get updated whenever you update any field text. Here's an example:
+
+\begin{${1:enumerate}}
+    $0
+\end{$1}
+When you type "document" at ${1:enumerate}, the word "document" will also be inserted at \end{$1}. The best explanation is to see the screencast(YouTube or avi video).
+
+The tab stops with the same number to the field act as its mirrors. If none of the tab stops has an initial value, the first one is selected as the field and others mirrors.
+
+Mirrors with transformations
+If the value of an ${n:-construct starts with and contains $(, then it is interpreted as a mirror for field n with a transformation. The mirror's text content is calculated according to this transformation, which is Emacs-lisp code that gets evaluated in an environment where the variable yas-text is bound to the text content (string) contained in the field n. Here's an example for Objective-C:
+
+- (${1:id})${2:foo}
+{
+    return $2;
+}
+
+- (void)set${2:$(capitalize yas-text)}:($1)aValue
+{
+    [$2 autorelease];
+    $2 = [aValue retain];
+}
+$0
+Look at ${2:$(capitalize yas-text)}, it is a mirror with transformation instead of a field. The actual field is at the first line: ${2:foo}. When you type text in ${2:foo}, the transformation will be evaluated and the result will be placed there as the transformed text. So in this example, if you type "baz" in the field, the transformed text will be "Baz". This example is also available in the screencast.
+
+Another example is for rst-mode. In reStructuredText, the document title can be some text surrounded by "=" below and above. The "=" should be at least as long as the text. So
+
+=====
+Title
+=====
+is a valid title but
+
+===
+Title
+===
+is not. Here's an snippet for rst title:
+
+${1:$(make-string (string-width yas-text) ?\=)}
+${1:Title}
+${1:$(make-string (string-width yas-text) ?\=)}
+
+$0
+Note that a mirror with a transform is not restricted to the text of the field it is mirroring. By making use of yas-field-value, a mirror can look at any of the snippet's field (as mentioned above, all mirrors are updated when any field is updated). Here is an example which shows a "live" result of calling format:
+
+(format "${1:formatted %s}" "${2:value}")
+=> "${1:$(ignore-errors (format (yas-field-value 1) (yas-field-value 2)))}"
+To keep the example simple, it uses ignore-errors to suppress errors due to incomplete format codes.
+
+Fields with transformations
+From version 0.6 on, you can also have lisp transformation inside fields. These work mostly like mirror transformations. However, they are evaluated when you first enter the field, after each change you make to the field and also just before you exit the field.
+
+The syntax is also a tiny bit different, so that the parser can distinguish between fields and mirrors. In the following example
+
+#define "${1:mydefine$(upcase yas-text)}"
+
+mydefine gets automatically upcased to MYDEFINE once you enter the field. As you type text, it gets filtered through the transformation every time.
+
+Note that to tell this kind of expression from a mirror with a transformation, YASnippet needs extra text between the : and the transformation's $. If you don't want this extra-text, you can use two $'s instead.
+
+#define "${1:$$(upcase yas-text)}"
+
+Please note that as soon as a transformation takes place, it changes the value of the field and sets it its internal modification state to true. As a consequence, the auto-deletion behaviour of normal fields does not take place. This is by design.
+
+Choosing fields value from a list and other tricks
+As mentioned, the field transformation is invoked just after you enter the field, and with some useful variables bound, notably yas-modified-p and yas-moving-away-p. Because of this feature you can place a transformation in the primary field that lets you select default values for it.
+
+The yas-choose-value does this work for you. For example:
+
+<div align="${2:$$(yas-choose-value '("right" "center" "left"))}">
+  $0
+</div>
+See the definition of yas-choose-value to see how it was written using the two variables.
+
+Here's another use, for LaTeX-mode, which calls reftex-label just as you enter snippet field 2. This one makes use of yas-modified-p directly.
+
+\section{${1:"Titel der Tour"}}%
+\index{$1}%
+\label{{2:"waiting for reftex-label call..."$(unless yas-modified-p (reftex-label nil 'dont-
+insert))}}%
+The function yas-verify-value has another neat trick, and makes use of yas-moving-away-p. Try it and see! Also, check out this thread
+
+Nested placeholder fields
+From version 0.6 on, you can also have nested placeholders of the type:
+
+<div${1: id="${2:some_id}"}>$0</div>
+This allows you to choose if you want to give this div an id attribute. If you tab forward after expanding, it will let you change "some\id" to whatever you like. Alternatively, you can just press C-d (which executes yas-skip-and-clear-or-delete-char) and go straight to the exit marker.
+
+By the way, C-d will only clear the field if you cursor is at the beginning of the field and it hasn't been changed yet. Otherwise, it performs the normal Emacs delete-char command.
+
+Indentation markers
+If yas-indent-line is not set to 'auto, it's still possible to indent specific lines by adding an indentation marker, $>, somewhere on the line.
+
+Place your own snippets on ~/.emacs.d/snippets
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (use-package yasnippet
+    :ensure t
+    :config
+    :init
+    (yas-global-mode 1)
+    )
+  (use-package auto-yasnippet
+    :ensure t
+    )
+  (use-package yasnippet-snippets
+    :ensure t)
+#+end_src
+
+* flycheck
+#+BEGIN_COMMENT 
+Syntax checking for programming languages
+
+Getting Started
+Flycheck is available for installation with package.el on NonGNU ELPA, MELPA Stable and MELPA.
+
+You can install Flycheck with the following command:
+
+M-x package-install [RET] flycheck [RET]
+
+Finally add this to your Emacs config:
+
+(global-flycheck-mode +1)
+Alternatively, if you're into use-package you can do the following:
+
+(use-package flycheck
+  :ensure t
+  :config
+  (add-hook 'after-init-hook #'global-flycheck-mode))
+Now you can start using any of the bundled checkers or install additional checkers.
+
+For a more gentle introduction read the Installation instructions and go through Quickstart guide. https://www.flycheck.org/en/latest/user/quickstart.html
+
+Enable Flycheck
+Now add the following code to your init file to permanently enable syntax checking with Flycheck:
+
+(add-hook 'after-init-hook #'global-flycheck-mode)
+
+Check syntax in a buffer
+Now you are ready to use Flycheck in a Python or Javascript buffer. Visit a Python or Javascript file and check whether your Flycheck setup is complete with C-c ! v.
+
+If everything is green, Flycheck will now start to check the buffer on the fly while you are editing. Whenever you make a mistake that eslint or Pylint can catch, Flycheck will highlight the corresponding place in the buffer with an error underline whose color reflects the severity of the issue. Additionally, Flycheck will put a symbol into the fringe for affected lines and show the total number of errors and warnings in the buffer in the mode line.
+
+Navigate and list errors
+With C-c ! n and C-c ! p you can now jump back and forth between erroneous places. If you keep on such a place for a little while Flycheck will show the corresponding error message in the echo area. Likewise, if you hover such a place with the mouse cursor Flycheck will show the error message in a tooltip.
+
+Press C-c ! l to pop up a list of all errors in the current buffer. This list automatically updates itself when you fix errors or introduce new ones, and follows the currently selected buffer. If the error list is selected you can type n and p to move up and down between errors and jump to their corresponding location in the buffer.
+#+END_COMMENT  
+    
+#+begin_src emacs-lisp
+  (use-package flycheck
+    :ensure t
+    :config
+    (global-set-key  (kbd "C-c C-p") 'flycheck-previous-error)
+    (global-set-key  (kbd "C-c C-n") 'flycheck-next-error)
+    :init
+    (global-flycheck-mode t)
+    )
+#+end_src
+
+* company
+#+BEGIN_COMMENT
+Autocompletion with company
+About
+Company is a text and code completion framework for Emacs. The name stands for "complete anything". It uses pluggable back-ends and front-ends to retrieve and display completion candidates.
+
+It comes with several back-ends such as Clang, Ispell, CMake, BBDB, Yasnippet, Dabbrev, Etags, Gtags, Files, Keywords and others.
+
+And the CAPF back-end provides a bridge to the standard completion-at-point-functions facility, and thus works with any major mode that uses the common protocol.
+
+Usage
+Once installed, enable company-mode with M-x company-mode.
+
+Completion will start automatically after you type a few letters. Use C-n and C-p to select, <return> to complete or <tab> to complete the common part. Search through the completions with C-s, C-r and C-o. Press M-(digit) to quickly complete with one of the first 10 candidates.
+
+Type M-x company-complete to initiate completion manually. Bind this command to a key combination of your choice (this is optional).
+
+When the completion candidates are shown, press <f1> to display the documentation for the selected candidate, or C-w to see its source. Not all back-ends support this.
+
+To use company-mode in all buffers, add the following line to your init file:
+
+(add-hook 'after-init-hook 'global-company-mode)
+To see or change the list of enabled back-ends, type M-x customize-variable RET company-backends. Also see its description for information on writing a back-end.
+
+For information on specific back-ends, also check out the comments inside the respective files.
+
+For more information, type M-x describe-function RET company-mode.
+
+To customize other aspects of its behavior, type M-x customize-group RET company.
+
+To diagnose missing or wrong completions, try M-x company-diag as the first step.
+https://company-mode.github.io/
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (use-package company
+    :ensure t
+    :config
+    (setq company-idle-delay 0)
+    (setq company-minimum-prefix-length 3)
+    ;; (add-to-list 'company-backends 'company-yasnippet t)
+    (global-company-mode t)
+    )
+#+end_src
+** company-quickhelp
+#+BEGIN_COMMENT
+In case you want popup help instead of status line help
+#+END_COMMENT
+#+begin_src emacs-lisp
+  (use-package company-quickhelp
+    :ensure t
+    :config
+    (company-quickhelp-mode)
+  )
+#+end_src
+
+* Python
+** python-IDE
+** Use latest python
+   #+begin-src emacs-lisp
+     (setq python-shell-interpreter "/usr/bin/python3.8")
+     (setq py-python-command "/usr/bin/python3.8")        ; maybe not needed
+     (setq python-python-command "/usr/bin/python3.8")    ; maybe not needed
+   #+end-src
+
+** company-jedi
+** Choose company-jedi or elpy, you don't need both**
+** Autocompletion for python
+#+BEGIN_COMMENT 
+  :: - Run M-x jedi:install-server
+  :: - M-x jedi:show-setup-info
+#+END_COMMENT
+
+   #+begin_src emacs-lisp
+     ;; (use-package company-jedi             ;;; company-mode completion back-end for Python JEDI
+     ;;   :ensure t
+     ;;   :config
+     ;;   (setq jedi:environment-virtualenv
+     ;;         (append python-environment-virtualenv
+     ;;                 '("--no-site-packages" "--python" "/usr/bin/python3.8")))
+     ;;   (setq jedi:environment-virtualenv (list (expand-file-name "~/.emacs.d/.python-environments/")))
+     ;;   (add-hook 'python-mode-hook 'jedi:setup)
+     ;;   (setq jedi:complete-on-dot t)
+     ;;   (setq jedi:use-shortcuts t)
+     ;;   (defun config/enable-company-jedi ()
+     ;;     (add-to-list 'company-backends 'company-jedi))
+     ;;   (add-hook 'python-mode-hook 'config/enable-company-jedi)
+     ;;   )
+   #+end_src
+
+** elpy
+#+BEGIN_COMMENT
+Choose only one configuration: company-jedi or elpy**
+#+END_COMMENT
+** The virtualenv for elpy-rpc must be manually created
+** [[https://elpy.readthedocs.io/en/latest/][elpy documentation]]
+
+#+begin_src emacs-lisp
+  (use-package elpy
+    :ensure t
+    :defer t
+    :init
+    (advice-add 'python-mode :before 'elpy-enable)
+    :config
+    (setq elpy-rpc-python-command (expand-file-name "~/.virtualenvs/elpy-rpc/bin/python"))
+    (setq elpy-rpc-virtualenv-path (expand-file-name "~/.virtualenvs/elpy-rpc"))
+    (elpy-enable)
+    (setq elpy-modules (delq 'elpy-module-flymake elpy-modules))
+    (add-hook 'elpy-mode-hook 'flycheck-mode)
+    (setq elpy-rpc-backend "jedi")
+    (add-hook 'elpy-mode-hook (lambda ()
+                                (add-hook 'before-save-hook
+                                          'elpy-format-code nil t)))
+    )
+#+end_src
+
+** virtualenvwrapper
+#+BEGIN_COMMENT
+I don't use this package
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  ;; (use-package virtualenvwrapper
+  ;;   :ensure t
+  ;;   :config
+  ;;   (venv-initialize-interactive-shells)
+  ;;   (venv-initialize-eshell)
+  ;;   )
+#+end_src
+
+* C++ et al
+#+BEGIN_COMMENT
+[[https://github.com/guolibao/guo-dot-emacs-dot-d][ Pistas]] 
+#+END_COMMENT
+
+  #+begin_src emacs-lisp
+     ;; tags for code navigation
+     ;; (use-package ggtags
+     ;;   :ensure t
+     ;;   :config
+     ;;   (add-hook 'c-mode-common-hook
+     ;;             (lambda ()
+     ;;               (when (derived-mode-p 'c-mode 'c++-mode 'java-mode 'asm-mode)
+     ;;                 (ggtags-mode 1)))
+     ;;             )
+     ;;   )
+     ;; (define-key ggtags-mode-map (kbd "C-c g s") 'ggtags-find-other-symbol)
+     ;; (define-key ggtags-mode-map (kbd "C-c g h") 'ggtags-view-tag-history)
+     ;; (define-key ggtags-mode-map (kbd "C-c g r") 'ggtags-find-reference)
+     ;; (define-key ggtags-mode-map (kbd "C-c g f") 'ggtags-find-file)
+     ;; (define-key ggtags-mode-map (kbd "C-c g c") 'ggtags-create-tags)
+     ;; (define-key ggtags-mode-map (kbd "C-c g u") 'ggtags-update-tags)
+     ;;
+     ;; (define-key ggtags-mode-map (kbd "M-,") 'pop-tag-mark)
+
+     ;; (use-package company-c-headers
+     ;;   :config
+     ;;   (add-hook 'c-mode-common-hook (lambda () (add-local-company-backend 'company-c-headers)))
+     ;;   (add-to-list 'company-c-headers-path-system "/usr/include/c++/7/")
+     ;;   )
+     ;; (use-package cmake-ide
+     ;;   :bind ("<f5>" . cmake-ide-compile)
+     ;;   :config
+     ;;   (require 'rtags)
+     ;;   (cmake-ide-setup)
+     ;;   (add-hook 'c-mode-hook   #'cmake-ide-load-db)
+     ;;   (add-hook 'c++-mode-hook #'cmake-ide-load-db)
+     ;;   (setq cmake-ide-src-extensions '(".c" ".cpp" ".C" ".cxx" ".cc" ".c++"))
+     ;;   )
+  #+end_src
+
+* D programming language
+   #+begin_src emacs-lisp
+     ;;(use-package flycheck-d-unittest
+     ;;  :ensure t)
+     ;;(use-package company-dcd
+     ;;  :ensure t
+     ;;  :config
+     ;;  (add-hook 'd-mode-hook 'company-dcd-mode)
+     ;;  )
+
+     ;; (use-package ac-dcd
+     ;;   :defer t
+     ;;   :ensure t
+     ;;   :config
+     ;;   (ac-dcd-maybe-start-server)
+     ;;   (add-hook 'd-mode-hook 'ac-dcd-setup)
+     ;;   (require 'flycheck-d-unittest)
+     ;;   (setup-flycheck-d-unittest)
+     ;;   (flycheck-dmd-dub-set-variables)
+     ;;   )
+   #+end_src
+
+* Edicion
+#+BEGIN_COMMENT 
+;; ==============================
+;; 4 Configuraciones de Edición
+;; ==============================
+#+END_COMMENT
+
+#+BEGIN_COMMENT 
+;; Verificamos la sintaxis de código al vuelo.
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (global-flycheck-mode t)
+#+end_src
+
+#+BEGIN_COMMENT 
+;; No usamos tabs duros.
+;;#+begin_src emacs-lisp
+;;(setq-default indent-tabs-mode nil)
+#+END_COMMENT
+
+#+BEGIN_COMMENT 
+;; Configuramos a emacs de tal forma que pueda compartir el clipboard con
+;; el sistema operativo.
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+(setq
+ x-select-enable-clipboard t
+ x-select-enable-primary t
+ save-interprogram-paste-before-kill t
+ apropos-do-all t
+ mouse-yank-at-point t)
+#+end_src
+
+#+BEGIN_COMMENT 
+;; Configuramos la búsqueda en el buffer. (ya hay comandos habiliados en myinit.org)
+;;#+begin_src emacs-lisp
+;;(global-set-key (kbd "C-s") 'isearch-forward-regexp)
+::(global-set-key (kbd "C-r") 'isearch-backward-regexp)
+;;(global-set-key (kbd "C-M-s") 'isearch-forward)
+;;(global-set-key (kbd "C-M-r") 'isearch-backward)
+;; Atajos globales para Org Mode
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+(global-set-key (kbd "C-c l") 'org-store-link)
+(global-set-key (kbd "C-c a") 'org-agenda)
+(global-set-key (kbd "C-c c") 'org-capture)
+#+end_src
+
+#+BEGIN_COMMENT 
+;; Una característica que me gustaba de mis anteriores editores es el duplicar
+;; una linea  de código.
+;;#+begin_src emacs-lisp
+;;(global-set-key "\C-c\C-d" "\C-a\C- \C-n\M-w\C-y")
+;;#+end_src
+#+END_COMMENT
+
+#+BEGIN_COMMENT 
+;; Better Header Bullets
+;; ==================================================================================
+;; https://www.howardism.org/Technical/Emacs/orgmode-wordprocessor.html
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+(require 'org-bullets)
+(add-hook 'org-mode-hook (lambda () (org-bullets-mode 1))) 
+#+end_src
+
+#+BEGIN_COMMENT 
+;; Better Headers
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+(let* ((variable-tuple (cond ((x-list-fonts "Source Sans Pro") '(:font "Source Sans Pro"))
+                             ((x-list-fonts "Lucida Grande")   '(:font "Lucida Grande"))
+                             ((x-list-fonts "Verdana")         '(:font "Verdana"))
+                             ((x-family-fonts "Sans Serif")    '(:family "Sans Serif"))
+                             (nil (warn "Cannot find a Sans Serif Font.  Install Source Sans Pro."))))
+       (base-font-color     (face-foreground 'default nil 'default))
+       (headline           `(:inherit default :weight bold :foreground ,base-font-color)))
+
+  (custom-theme-set-faces 'user
+                          `(org-level-8 ((t (,@headline ,@variable-tuple))))
+                          `(org-level-7 ((t (,@headline ,@variable-tuple))))
+                          `(org-level-6 ((t (,@headline ,@variable-tuple))))
+                          `(org-level-5 ((t (,@headline ,@variable-tuple))))
+                          `(org-level-4 ((t (,@headline ,@variable-tuple :height 1.1))))
+                          `(org-level-3 ((t (,@headline ,@variable-tuple :height 1.25))))
+                          `(org-level-2 ((t (,@headline ,@variable-tuple :height 1.5))))
+                          `(org-level-1 ((t (,@headline ,@variable-tuple :height 1.75))))
+                          `(org-document-title ((t (,@headline ,@variable-tuple :height 1.5 :underline nil))))))
+#+end_src
+				  
+* TaskJuggler
+#+BEGIN_COMMENT 
+ 
+;; =======================https://github.com/devrintalen/taskjuggler-mode.el========================
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'yasnippet
+    (taskjuggler-mode-snippets-initialize))
+  (global-set-key "\C-o" 'yas-expand)
+  #+end_src
+  
+#+BEGIN_COMMENT 
+;; ==========================
+;; ox-taskjuggler
+;; ?========================
+;;(add-to-list 'package-archives
+;;             '("ox-taskjuggler" . "https://github.com/h-oll/ox-taskjuggler.git"))
+
+;;(require 'ox-taskjuggler)
+;;	(setq org-taskjuggler-default-global-properties "include \"globals.tji\"")
+;;	(setq org-taskjuggler-default-reports '("include \"reports.tji\""))
+;;	(setq org-taskjuggler-valid-resource-attributes '(limits vacation email shift booking efficiency journalentry rate chargeset workinghours flags))
+#+END_COMMENT
+
+#+BEGIN_COMMENT
+;; Org-mode and wide TaskJuggler HTML export
+;; ============================ https://hugoideler.com/2018/09/org-mode-and-wide-taskjuggler-html-export/
+#+END_COMMENT
+
+#+begin_src emacs-lisp
+  (setq org-taskjuggler-default-reports
+        '("textreport report \"Plan\" {
+        formats html
+        header '== %title =='
+        center -8<-
+        [#Plan Plan] | [#Resource_Allocation Resource Allocation]
+        ----
+        === Plan ===
+        <[report id=\"plan\"]>
+        ----
+        === Resource Allocation ===
+        <[report id=\"resourceGraph\"]>
+        ->8-
+        }
+
+
+      ;; # A traditional Gantt chart with a project overview.
+      taskreport plan \"\" {
+      headline \"Project Plan\"
+      columns bsi, name, start, end, effort, effortdone, effortleft, chart { width 1000 }
+      loadunit shortauto
+      hideresource 1
+      }
+
+    ;; # A graph showing resource allocation. It identifies whether each
+    ;; # resource is under- or over-allocated for.
+    resourcereport resourceGraph \"\" {
+    headline \"Resource Allocation Graph\"
+    columns no, name, effort, weekly { width 1000 }
+    loadunit shortauto
+    hidetask ~(isleaf() & isleaf_())
+    sorttasks plan.start.up
+    }")
+        )
+
+  (setq org-taskjuggler-default-project-duration 999)
+  (setq org-taskjuggler-valid-task-attributes
+        '(account start note duration endbuffer endcredit end
+                  flags journalentry length limits maxend maxstart minend
+                  minstart period reference responsible scheduling
+                  startbuffer startcredit statusnote chargeset charge booking)) 
+#+end_src
